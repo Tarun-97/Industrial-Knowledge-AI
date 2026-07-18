@@ -8,17 +8,24 @@ class VectorStore:
 
     def __init__(self):
 
+        # Persistent ChromaDB storage
         db_path = Path("chroma_db")
 
         self.client = chromadb.PersistentClient(
             path=str(db_path)
         )
 
+        # Collection containing all document chunks
         self.collection = self.client.get_or_create_collection(
             name="industrial_documents"
         )
 
+        # Embedding service
         self.embedding_service = EmbeddingService()
+
+    # --------------------------------------------------
+    # ADD DOCUMENT CHUNKS
+    # --------------------------------------------------
 
     def add_documents(
         self,
@@ -39,6 +46,10 @@ class VectorStore:
             ids=ids
         )
 
+    # --------------------------------------------------
+    # SEARCH DOCUMENTS
+    # --------------------------------------------------
+
     def search(
         self,
         query,
@@ -57,13 +68,20 @@ class VectorStore:
 
         return results
 
+    # --------------------------------------------------
+    # LIST ALL DOCUMENTS
+    # --------------------------------------------------
+
     def list_documents(self):
 
         results = self.collection.get(
             include=["metadatas"]
         )
 
-        metadatas = results.get("metadatas", [])
+        metadatas = results.get(
+            "metadatas",
+            []
+        )
 
         documents = {}
 
@@ -72,7 +90,9 @@ class VectorStore:
             if not metadata:
                 continue
 
-            filename = metadata.get("filename")
+            filename = metadata.get(
+                "filename"
+            )
 
             if not filename:
                 continue
@@ -81,10 +101,52 @@ class VectorStore:
 
                 documents[filename] = {
                     "name": filename,
-                    "pages": metadata.get("pages", 0),
+                    "pages": metadata.get(
+                        "pages",
+                        0
+                    ),
                     "chunks": 0
                 }
 
             documents[filename]["chunks"] += 1
 
-        return list(documents.values())
+        return list(
+            documents.values()
+        )
+
+    # --------------------------------------------------
+    # DELETE DOCUMENT
+    # --------------------------------------------------
+
+    def delete_document(
+        self,
+        filename
+    ):
+
+        # Find all chunks belonging
+        # to this filename
+        results = self.collection.get(
+            where={
+                "filename": filename
+            },
+            include=["metadatas"]
+        )
+
+        ids = results.get(
+            "ids",
+            []
+        )
+
+        # Delete all chunks
+        # belonging to this document
+        if ids:
+
+            self.collection.delete(
+                ids=ids
+            )
+
+        return {
+            "message": "Document deleted successfully",
+            "filename": filename,
+            "deleted_chunks": len(ids)
+        }
