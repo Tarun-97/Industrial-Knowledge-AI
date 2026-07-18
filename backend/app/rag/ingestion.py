@@ -52,17 +52,18 @@ def ingest_pdf(filepath: Path):
 
     metadatas = [
 
-        {
-            "source": filepath.name,
-            "document_id": document_id,
-            "chunk_index": index
-        }
+    {
+        "source": filepath.name,
+        "document_id": document_id,
+        "chunk_index": index,
+        "pages": data["pages"]
+    }
 
-        for index, chunk in enumerate(
-            chunks
-        )
+    for index, chunk in enumerate(
+        chunks
+    )
 
-    ]
+]
 
     # --------------------------------------------------
     # CREATE UNIQUE CHUNK IDS
