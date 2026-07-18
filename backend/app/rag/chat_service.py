@@ -20,6 +20,9 @@ class ChatService:
             n_results=5
         )
 
+        print("CHAT SEARCH RESULTS:")
+        print(results)
+
         documents = results["documents"][0]
 
         metadatas = results["metadatas"][0]
