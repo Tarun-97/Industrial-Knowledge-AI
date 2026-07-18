@@ -8,24 +8,56 @@ class VectorStore:
 
     def __init__(self):
 
-        # Persistent ChromaDB storage
+        # --------------------------------------------------
+        # PERSISTENT CHROMADB STORAGE
+        # --------------------------------------------------
+
         db_path = Path("chroma_db")
 
         self.client = chromadb.PersistentClient(
             path=str(db_path)
         )
 
-        # Collection containing all document chunks
+        # --------------------------------------------------
+        # DOCUMENT COLLECTION
+        # --------------------------------------------------
+
         self.collection = self.client.get_or_create_collection(
             name="industrial_documents"
         )
 
-        # Embedding service
+        # --------------------------------------------------
+        # EMBEDDING SERVICE
+        # --------------------------------------------------
+
         self.embedding_service = EmbeddingService()
 
-    # --------------------------------------------------
+    # ==================================================
+    # CLEAR ALL DOCUMENTS
+    # ==================================================
+
+    def clear_all_documents(self):
+
+        existing = self.collection.get()
+
+        ids = existing.get(
+            "ids",
+            []
+        )
+
+        if ids:
+
+            self.collection.delete(
+                ids=ids
+            )
+
+        return {
+            "deleted_chunks": len(ids)
+        }
+
+    # ==================================================
     # ADD DOCUMENT CHUNKS
-    # --------------------------------------------------
+    # ==================================================
 
     def add_documents(
         self,
@@ -36,7 +68,9 @@ class VectorStore:
 
         embeddings = (
             self.embedding_service
-            .create_embeddings(documents)
+            .create_embeddings(
+                documents
+            )
         )
 
         self.collection.add(
@@ -46,9 +80,9 @@ class VectorStore:
             ids=ids
         )
 
-    # --------------------------------------------------
+    # ==================================================
     # SEARCH DOCUMENTS
-    # --------------------------------------------------
+    # ==================================================
 
     def search(
         self,
@@ -58,24 +92,30 @@ class VectorStore:
 
         query_embedding = (
             self.embedding_service
-            .create_embeddings([query])[0]
+            .create_embeddings(
+                [query]
+            )[0]
         )
 
         results = self.collection.query(
-            query_embeddings=[query_embedding],
+            query_embeddings=[
+                query_embedding
+            ],
             n_results=n_results
         )
 
         return results
 
-    # --------------------------------------------------
+    # ==================================================
     # LIST ALL DOCUMENTS
-    # --------------------------------------------------
+    # ==================================================
 
     def list_documents(self):
 
         results = self.collection.get(
-            include=["metadatas"]
+            include=[
+                "metadatas"
+            ]
         )
 
         metadatas = results.get(
@@ -90,8 +130,11 @@ class VectorStore:
             if not metadata:
                 continue
 
-            filename = metadata.get(
-                "filename"
+            # Support both metadata names:
+            # filename and source
+            filename = (
+                metadata.get("filename")
+                or metadata.get("source")
             )
 
             if not filename:
@@ -108,45 +151,73 @@ class VectorStore:
                     "chunks": 0
                 }
 
-            documents[filename]["chunks"] += 1
+            documents[filename][
+                "chunks"
+            ] += 1
 
         return list(
             documents.values()
         )
 
-    # --------------------------------------------------
-    # DELETE DOCUMENT
-    # --------------------------------------------------
+    # ==================================================
+    # DELETE ONE DOCUMENT
+    # ==================================================
 
     def delete_document(
         self,
         filename
     ):
 
-        # Find all chunks belonging
-        # to this filename
+        # Search using both possible
+        # metadata field names
         results = self.collection.get(
-            where={
-                "filename": filename
-            },
-            include=["metadatas"]
+            include=[
+                "metadatas"
+            ]
         )
+
+        ids_to_delete = []
 
         ids = results.get(
             "ids",
             []
         )
 
-        # Delete all chunks
-        # belonging to this document
-        if ids:
+        metadatas = results.get(
+            "metadatas",
+            []
+        )
+
+        for index, metadata in enumerate(
+            metadatas
+        ):
+
+            if not metadata:
+                continue
+
+            stored_filename = (
+                metadata.get("filename")
+                or metadata.get("source")
+            )
+
+            if stored_filename == filename:
+
+                ids_to_delete.append(
+                    ids[index]
+                )
+
+        if ids_to_delete:
 
             self.collection.delete(
-                ids=ids
+                ids=ids_to_delete
             )
 
         return {
-            "message": "Document deleted successfully",
+            "message": (
+                "Document deleted successfully"
+            ),
             "filename": filename,
-            "deleted_chunks": len(ids)
+            "deleted_chunks": len(
+                ids_to_delete
+            )
         }
